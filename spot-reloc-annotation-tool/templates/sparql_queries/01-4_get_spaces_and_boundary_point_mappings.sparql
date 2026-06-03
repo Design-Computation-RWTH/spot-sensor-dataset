@@ -1,0 +1,15 @@
+PREFIX spot:   <https://w3id.org/spot#>
+PREFIX spotam: <https://w3id.org/spot/am#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?spaceLabel ?appearanceSpaceLabel ?bpmLabel ?coord
+WHERE {
+  ?space rdfs:label ?spaceLabel ;
+         spot:hasAppearance ?appearance .
+  ?appearance spot:appearsIn ?appearanceSpace ;
+      spotam:hasBoundaryPointMapping ?bpm .
+  ?appearanceSpace rdfs:label ?appearanceSpaceLabel .
+  ?bpm rdfs:label ?bpmLabel .
+  OPTIONAL { ?bpm spotam:hasNormalizedCoordinateValue ?coord }
+}
+ORDER BY ?spaceLabel ?bpmLabel

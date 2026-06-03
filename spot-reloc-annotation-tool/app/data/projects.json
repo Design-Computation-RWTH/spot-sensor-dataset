@@ -1,0 +1,50 @@
+{
+  "d8e57ebc-6a4c-4884-a0ff-219a6443c3fa": {
+    "id": "d8e57ebc-6a4c-4884-a0ff-219a6443c3fa",
+    "original_name": "overview.png",
+    "filename": "d8e57ebc-6a4c-4884-a0ff-219a6443c3fa.png",
+    "ext": ".png",
+    "width": 1919,
+    "height": 1169,
+    "env_id": null,
+    "spaces": {},
+    "meta": {},
+    "ontologies": []
+  },
+  "bcd5e0aa-6f0e-43e1-a982-182233695175": {
+    "id": "bcd5e0aa-6f0e-43e1-a982-182233695175",
+    "original_name": "floorplan.png",
+    "filename": "bcd5e0aa-6f0e-43e1-a982-182233695175.png",
+    "ext": ".png",
+    "width": 2559,
+    "height": 209,
+    "env_id": null,
+    "spaces": {},
+    "meta": {},
+    "ontologies": []
+  },
+  "a7a4cc92-d93a-4514-867b-06dc89267e99": {
+    "id": "a7a4cc92-d93a-4514-867b-06dc89267e99",
+    "original_name": "detailed_view.png",
+    "filename": "a7a4cc92-d93a-4514-867b-06dc89267e99.png",
+    "ext": ".png",
+    "width": 1597,
+    "height": 1163,
+    "env_id": null,
+    "spaces": {},
+    "meta": {},
+    "ontologies": []
+  },
+  "37ffe1c6-3761-490d-ba9a-3a640b6e54ca": {
+    "id": "37ffe1c6-3761-490d-ba9a-3a640b6e54ca",
+    "original_name": "longitudinal_view.png",
+    "filename": "37ffe1c6-3761-490d-ba9a-3a640b6e54ca.png",
+    "ext": ".png",
+    "width": 2559,
+    "height": 230,
+    "env_id": null,
+    "spaces": {},
+    "meta": {},
+    "ontologies": []
+  }
+}

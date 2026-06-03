@@ -1,0 +1,20 @@
+PREFIX spot:  <https://w3id.org/spot#>
+PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?label ?spaceType
+WHERE {
+  VALUES ?type {
+    spot:AssetSpace
+    spot:EntitySpace
+    spot:VolumeSpace
+    spot:AreaSpace
+    spot:LineSpace
+    spot:PointSpace
+    spot:DocumentSpace
+  }
+  ?space a ?type ;
+         rdf:type ?type ;
+         rdfs:label ?label .
+  ?type rdfs:label ?spaceType .
+}
+ORDER BY ?spaceType ?label

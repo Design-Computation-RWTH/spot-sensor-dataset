@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Annotate2DSpaces</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script src="https://unpkg.com/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div id="header">
+  <div id="logo-wrap">
+    <button class="ph-btn ph-btn-fill" data-action="createEnvironment">Add Folder</button>
+    <button class="ph-btn ph-btn-fill" data-action="triggerImport">Upload File</button>
+  </div>
+  <div style="display:flex;gap:3px">
+    <button class="tbtn active" id="btn-select" data-action="setMode" data-arg="select" title="Select (S)">&#9654; Select (S)</button>
+  </div>
+  <div class="hsep"></div>
+  <div style="display:flex;gap:3px">
+    <button class="tbtn" data-action="undo" title="Undo (Ctrl+Z)" style="font-size:13px;padding:3px 9px">↩</button>
+    <button class="tbtn" data-action="redo" title="Redo (Ctrl+Shift+Z)" style="font-size:13px;padding:3px 9px">↪</button>
+  </div>
+  <div class="hsep"></div>
+  <div class="tool-group" style="display:flex;gap:3px">
+    <button class="tbtn" id="btn-bbox"   data-action="setMode" data-arg="bbox"   title="Draw DocumentSpace (D)">DocumentSpace (D)</button>
+    <button class="tbtn" id="btn-volume" data-action="setMode" data-arg="volume" title="Draw VolumeSpace (V)">VolumeSpace (V)</button>
+    <button class="tbtn" id="btn-vector" data-action="setMode" data-arg="vector" title="Draw LineSpace (L)">LineSpace (L)</button>
+    <button class="tbtn" id="btn-point"  data-action="setMode" data-arg="point"  title="Place PointSpace (P)">PointSpace (P)</button>
+  </div>
+  <div class="hsep"></div>
+  <!-- Hidden buttons kept for keyboard shortcuts -->
+  <div style="display:none">
+    <button class="tbtn" data-action="toggleHideAnnotations" title="Hide all annotations (H)" id="btn-hide-annotations">Hide Annotations (H)</button>
+    <button class="tbtn" data-action="toggleHideLabels" title="Hide labels, keep frames (Shift+H)" id="btn-hide-labels">Hide Labels (⇧H)</button>
+    <button class="tbtn" data-action="toggleFlattenImage" title="Flatten Image (F)" id="btn-flatten">Flatten (F)</button>
+  </div>
+  <div style="display:flex;gap:3px">
+    <button class="tbtn" data-action="zoomIn"  title="Zoom in (+)">+</button>
+    <button class="tbtn" data-action="zoomOut" title="Zoom out (-)">−</button>
+    <button class="tbtn" data-action="zoomFit" title="Fit">Fit</button>
+    <button class="tbtn" data-action="zoom100" title="100%">1:1</button>
+  </div>
+  <div class="hsep"></div>
+  <div style="display:flex;gap:3px">
+    <button class="tbtn" id="btn-dedup" data-action="toggleDedupPanel" title="Graph Editor (O)">Graph Editor (O)</button>
+    <button class="tbtn" id="btn-sparql" data-action="toggleSparql" title="SPARQL (Q)">SPARQL (Q)</button>
+  </div>
+  <div style="flex:1" id="header-spacer"></div>
+  <div id="header-export-wrap">
+    <div id="export-bar">
+      <button class="exp-btn exp-json" data-action="exportJSON"    id="btn-export-json" disabled>&#8595; JSON</button>
+      <button class="exp-btn exp-json" data-action="exportAllJSON" id="btn-export-all">&#8595; All JSON</button>
+      <button class="exp-btn exp-rdf"  data-action="exportRDF"     id="btn-export-rdf"  disabled>&#8595; TTL</button>
+      <button class="exp-btn exp-rdf"  data-action="exportAllRDF"  id="btn-export-all-rdf">&#8595; All RDF</button>
+    </div>
+  </div>
+  <div id="status-text" style="display:none">ready</div>
+  <div id="fname" style="display:none">— no file open —</div>
+  <div id="zoom-info" style="display:none">100%</div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div id="main">
+
+  <!-- LEFT: FILE BROWSER -->
+    <div id="left-panel">
+      <div id="left-resizer" class="panel-resizer"></div>
+      <div id="file-list">
+        <div style="color:var(--text3);font-size:9px;font-family:var(--mono);padding:10px 8px;text-align:center;">Import a file or add an environment</div>
+      </div>
+      <div id="resource-list" style="display:none"></div>
+      <input type="file" id="import-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.webp" multiple>
+      <input type="file" id="resource-input" accept="*" multiple style="display:none">
+    </div>
+
+  <!-- CENTER: VIEWER -->
+  <div id="viewer-area">
+    <div id="canvas-container" class="mode-select viewer-dark">
+      <div id="viewer-empty">
+        <div class="viewer-app-label">Annotate<em>2D</em>Spaces</div>
+        <div class="ei">&#9638;</div>
+        <div class="et">No document open</div>
+        <div class="eh">Import a file from the left panel</div>
+      </div>
+      <img id="doc-canvas" style="display:none" draggable="false">
+      <div id="anno-layer"></div>
+      <div id="point-overlay"></div>   <!-- NEW: never zoomed/panned -->
+      <div id="label-overlay"></div>
+      <div id="draw-rect"></div>
+      <div id="ocr-rect"></div>
+      <!-- BP-in-Asset reference overlay (inside canvas-container so coords are relative) -->
+      <div id="bp-dimmer" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:49;pointer-events:none;"></div>
+      <div id="bp-ref-frame" style="display:none;position:absolute;overflow:hidden;z-index:50;border:2px solid rgba(255,255,255,0.7);box-sizing:border-box;pointer-events:none;mix-blend-mode:multiply;">
+        <img id="bp-ref-img" style="position:absolute;transform-origin:0 0;pointer-events:none;">
+      </div>
+      <div id="bp-hud" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:52;pointer-events:none;">Scroll = zoom &nbsp;·&nbsp; Middle-drag = pan &nbsp;·&nbsp; Enter = confirm &nbsp;·&nbsp; Esc = cancel</div>
+      <div id="bp-overlay-hit" style="display:none;position:absolute;inset:0;z-index:51;cursor:crosshair;"></div>
+    </div>
+
+    <!-- ══ SPARQL PANEL ══ docked at bottom of viewer -->
+    <div id="sparql-panel">
+      <div id="sparql-panel-resizer" title="Drag to resize panel"></div>
+      <div id="sparql-panel-hdr">
+        <label>Context:</label>
+        <select id="sparql-context-select" data-action="sparqlContextChange" data-event="change" title="Scope of RDF data to query">
+          <option value="file" selected>File</option>
+          <option value="environment">Folder</option>
+          <option value="all">All</option>
+        </select>
+        <label>Preset:</label>
+        <div id="sparql-preset-wrap" class="preset-wrap">
+          <button id="sparql-preset-btn" class="preset-btn" type="button" title="Load a preset query">— select query —</button>
+          <div id="sparql-preset-list" class="preset-list" hidden></div>
+        </div>
+        <span class="sparql-save-group">
+          <input id="sparql-save-name" type="text" placeholder="filename…" title="Filename stem to save as (overwrites if exists)"
+            data-action="sparqlSaveNameKey" data-event="keydown">
+          <button id="sparql-save-btn" data-action="sparqlSavePreset" title="Save current query (overwrites existing file if name matches)">Save</button>
+        </span>
+        <button id="sparql-run-btn" data-action="runSparqlQuery" title="Run query (Ctrl+Enter)">&#9654; Run</button>
+        <button id="sparql-ttl-btn" data-action="sparqlToggleTtl" title="Show / hide the generated Turtle file" class="active">Show .ttl</button>
+        <button id="sparql-panel-close" data-action="closeSparqlPanel" title="Close">&#10005;</button>
+      </div>
+      <div id="sparql-body">
+        <div id="sparql-left">
+          <div id="sparql-editor-wrap">
+            <textarea id="sparql-editor" spellcheck="false" placeholder="SELECT * WHERE { ?s ?p ?o } LIMIT 10"
+              data-action="sparqlEditorKey" data-event="keydown"></textarea>
+          </div>
+          <div id="sparql-divider" title="Drag to resize editor / results"></div>
+          <div id="sparql-status-bar">
+            <div id="sparql-status">No results yet. Select a preset or write a query, then click Run.</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
+              <label class="sparql-nav-toggle" id="sparql-hide-uri-toggle" title="Strip http://…/ prefix from URI values in result cells">
+                <input type="checkbox" id="sparql-hide-uri-cb"> Hide URI prefix
+              </label>
+              <label class="sparql-nav-toggle" id="sparql-nav-toggle" title="Click a result cell to jump the viewer to that space">
+                <input type="checkbox" id="sparql-nav-cb" checked> Navigate
+              </label>
+              <button id="sparql-csv-btn" class="sparql-csv-btn" data-action="sparqlExportCSV" title="Export results as CSV">&#8595; CSV</button>
+            </div>
+          </div>
+          <div id="sparql-results-wrap">
+            <table id="sparql-results-table"></table>
+          </div>
+        </div>
+        <div id="sparql-vert-divider" class="open" title="Drag to resize TTL viewer"></div>
+        <div id="sparql-ttl-wrap" class="open">
+          <div id="sparql-ttl-status">
+            <span id="sparql-ttl-status-text">TTL viewer — load a context to preview</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <label id="sparql-ttl-style-toggle" title="Toggle syntax highlighting">
+                <input type="checkbox" id="sparql-ttl-style-cb" data-action="toggleTtlStyle" checked> Highlight
+              </label>
+              <!-- TTL edit mode disabled — TTL is read-only, generated live from annotations
+              <button id="ttl-edit-btn" data-action="toggleTtlEdit" title="Edit TTL as plain text" style="display:none">&#9998; Edit</button>
+              <button id="ttl-save-btn" data-action="saveTtlContent" title="Save changes to project" style="display:none">&#128190; Save</button>
+              <button id="ttl-regen-btn" data-action="regenerateTtl" title="Regenerate TTL from annotations (discards manual edits)" style="display:none">&#8635; Regen</button>
+              -->
+            </div>
+          </div>
+          <!-- Find/Replace bar and editor wrap disabled — edit mode removed
+          <div id="ttl-find-bar">
+            <input id="ttl-find-input" type="text" placeholder="Find…"
+              data-action="ttlFindKey" data-event="keydown">
+            <input id="ttl-replace-input" type="text" placeholder="Replace with…"
+              data-action="ttlReplaceKey" data-event="keydown">
+            <button data-action="ttlReplaceOne" title="Replace next occurrence (Enter in Find box)">Replace</button>
+            <button data-action="ttlReplaceAll" title="Replace all occurrences">All</button>
+            <span id="ttl-find-status"></span>
+          </div>
+          -->
+          <pre id="sparql-ttl-viewer"></pre>
+          <!-- editor wrap disabled — edit mode removed
+          <div id="ttl-editor-wrap">
+            <div id="ttl-highlight-backdrop"><div id="ttl-highlight-content"></div></div>
+            <textarea id="sparql-ttl-editor" spellcheck="false" placeholder="TTL content will appear here for editing…"></textarea>
+          </div>
+          -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ DEDUP / ONTOLOGY PANEL ══ docked at bottom of viewer -->
+    <div id="dedup-panel">
+      <div id="dedup-panel-resizer" title="Drag to resize panel"></div>
+      <div id="dedup-panel-hdr">
+        <span style="font-size:10px;font-family:var(--mono);font-weight:600;color:var(--text)">Spaces &amp; Ontology</span>
+        <label style="font-size:9px;font-family:var(--mono);color:var(--text3);margin-left:10px">Context:</label>
+        <select id="dedup-context-select" style="font-size:9px;font-family:var(--mono);background:var(--surface);border:1px solid var(--border);color:var(--text2);border-radius:3px;padding:1px 4px;cursor:pointer">
+          <option value="file" selected>File</option>
+          <option value="environment">Folder</option>
+          <option value="all">All</option>
+        </select>
+        <button id="dedup-panel-close" data-action="closeDedupPanel" title="Close">&#10005;</button>
+      </div>
+      <div id="dedup-body">
+        <!-- LEFT: space list (top) + ontology load (bottom) -->
+        <div id="dedup-left">
+          <div id="dedup-list-top">
+            <div id="dedup-filter-row">
+              <input id="dedup-filter-input" type="text" placeholder="Filter spaces…" autocomplete="off" spellcheck="false">
+            </div>
+            <div id="dedup-sel-edit">
+              <div style="display:flex;gap:4px;align-items:center;padding:3px 6px;">
+                <span style="font-size:9px;font-family:var(--mono);color:var(--text3);flex-shrink:0">Name:</span>
+                <input id="dedup-sel-name" type="text" autocomplete="off" spellcheck="false">
+                <span style="font-size:9px;font-family:var(--mono);color:var(--text3);flex-shrink:0">Type:</span>
+                <select id="dedup-sel-type">
+                  <option value="DocumentSpace">DocumentSpace</option>
+                  <option value="VolumeSpace">VolumeSpace</option>
+                  <option value="LineSpace">LineSpace</option>
+                  <option value="PointSpace">PointSpace</option>
+                </select>
+              </div>
+            </div>
+            <div id="dedup-list-header">
+              <span class="dedup-col-label">Label</span>
+              <span class="dedup-col-type" data-col="type"><span class="dedup-col-resizer"></span>Type</span>
+              <span class="dedup-col-state" data-col="state"><span class="dedup-col-resizer"></span>State</span>
+              <span class="dedup-col-bp" data-col="bp"><span class="dedup-col-resizer"></span>BP</span>
+              <span class="dedup-col-addtype" data-col="addtype"><span class="dedup-col-resizer"></span>Additional Type</span>
+            </div>
+            <div id="dedup-space-list"></div>
+          </div>
+          <div id="dedup-left-divider" title="Drag to resize"></div>
+          <div id="dedup-list-bottom">
+            <div class="ph" style="gap:4px">Load Ontologies
+              <input id="onto-url-input" type="text" placeholder="URL" autocomplete="off" spellcheck="false">
+              <button class="ph-btn" id="btn-load-onto-url" title="Fetch ontology from URL">Get</button>
+              <button class="ph-btn" id="btn-load-onto" title="Upload .ttl or .rdf ontology files">+</button>
+            </div>
+            <div id="dedup-onto-list"><div style="color:var(--text3);font-size:9px;font-family:var(--mono);padding:6px 8px;text-align:center">No ontologies loaded</div></div>
+            <input type="file" id="onto-input" accept=".ttl,.rdf,.owl,.n3,.jsonld" multiple style="display:none">
+          </div>
+        </div>
+        <!-- VERTICAL DIVIDER -->
+        <div id="dedup-vert-divider" title="Drag to resize"></div>
+        <!-- RIGHT: graph + class editor -->
+        <div id="dedup-right">
+          <div id="dedup-graph-toolbar">
+            <span id="dedup-graph-info">Select a space from the list to view its graph</span>
+            <span style="flex:1"></span>
+            <button id="dedup-graph-fit-btn" title="Fit graph to view" style="display:none">Fit Graph</button>
+          </div>
+          <div id="dedup-graph-wrap">
+            <svg id="dedup-graph-svg" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="dg-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#888"/>
+                </marker>
+                <marker id="dg-arrow-class" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#c0c0c0"/>
+                </marker>
+              </defs>
+              <g id="dedup-graph-g"></g>
+            </svg>
+            <!-- Node action popup (mode → class link or instance link) -->
+            <div id="dedup-pred-popup">
+              <!-- View 1: action picker -->
+              <div id="dpop-mode">
+                <div class="dedup-popup-btns">
+                  <button id="dpop-btn-class">Link to Class</button>
+                  <button id="dpop-btn-instance">Link to Instance</button>
+                  <button id="dpop-btn-delete">Delete Link</button>
+                </div>
+              </div>
+              <!-- View 4: Delete existing class/instance links -->
+              <div id="dpop-delete" style="display:none">
+                <div id="dpop-delete-list"></div>
+                <div class="dedup-popup-btns" style="margin-top:6px">
+                  <button id="dpop-delete-cancel">&larr; Back</button>
+                </div>
+              </div>
+              <!-- View 2: Class link -->
+              <div id="dpop-class" style="display:none">
+                <div class="dedup-popup-row">
+                  <label>Predicate</label>
+                  <div style="position:relative">
+                    <input id="dedup-pred-input" type="text" placeholder="rdf:type, spot:hasAxis…" autocomplete="off" spellcheck="false">
+                    <div id="dedup-pred-ac" class="dedup-ac-list"></div>
+                  </div>
+                </div>
+                <div class="dedup-popup-row">
+                  <label>Class</label>
+                  <div style="position:relative">
+                    <input id="dedup-class-input" type="text" placeholder="bot:Zone, bot:Space…" autocomplete="off" spellcheck="false">
+                    <div id="dedup-class-ac" class="dedup-ac-list"></div>
+                  </div>
+                </div>
+                <div id="dedup-popup-multi-note" style="display:none;font-size:9px;color:var(--text3);font-family:var(--mono)">Applying to <span id="dedup-multi-count">0</span> selected spaces</div>
+                <div class="dedup-popup-btns">
+                  <button id="dedup-pred-confirm">Add</button>
+                  <button id="dedup-pred-cancel">&larr; Back</button>
+                </div>
+              </div>
+              <!-- View 3: Instance / space link -->
+              <div id="dpop-instance" style="display:none">
+                <div class="dedup-popup-row">
+                  <label>Predicate</label>
+                  <div style="position:relative">
+                    <input id="dedup-inst-pred-input" type="text" placeholder="owl:sameAs, rdf:type…" autocomplete="off" spellcheck="false">
+                    <div id="dedup-inst-pred-ac" class="dedup-ac-list"></div>
+                  </div>
+                </div>
+                <div class="dedup-popup-row">
+                  <label>Instance (new or existing)</label>
+                  <div style="position:relative">
+                    <input id="dedup-inst-input" type="text" placeholder="e.g. ex:MyElement" autocomplete="off" spellcheck="false">
+                    <div id="dedup-inst-ac" class="dedup-ac-list"></div>
+                  </div>
+                </div>
+                <div class="dedup-popup-btns">
+                  <button id="dedup-inst-confirm">Link</button>
+                  <button id="dedup-inst-cancel">&larr; Back</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: ANNOTATION SIDEBAR -->
+  <div id="right-panel">
+    <div id="right-resizer" class="panel-resizer"></div>
+
+    <!-- File metadata (dark section) -->
+    <div id="file-meta-section" class="fm-collapsed">
+      <div id="fm-header">
+        <button id="fm-toggle-btn" data-action="toggleFileMeta" title="Minimize / Expand" class="collapsed">▶</button>
+        <input class="fm-title-input" id="fm-filename" type="text" placeholder="&lt;file name&gt;" data-action="updateFileMeta_display_name" data-event="input">
+      </div>
+      <div id="fm-body" style="display:none">
+        <div class="fm-row">
+          <div class="fm-lbl">url</div>
+          <input class="fm-input" id="fm-url" type="text" placeholder="&lt;url&gt;" data-action="updateFileMeta_url" data-event="input">
+        </div>
+        <div class="fm-row">
+          <div class="fm-lbl">filetype</div>
+          <input class="fm-input" id="fm-filetype" type="text" placeholder="&lt;file extension&gt;" data-action="updateFileMeta_filetype" data-event="input">
+        </div>
+        <div class="fm-row">
+          <div class="fm-lbl">dct_type</div>
+          <select class="fm-select" id="fm-dcttype" data-action="updateFileMeta_dct_type" data-event="change">
+            <option value="Collection">Collection</option>
+            <option value="Dataset">Dataset</option>
+            <option value="Event">Event</option>
+            <option value="Image" selected>Image</option>
+            <option value="InteractiveResource">InteractiveResource</option>
+            <option value="MovingImage">MovingImage</option>
+            <option value="PhysicalObject">PhysicalObject</option>
+            <option value="Service">Service</option>
+            <option value="Software">Software</option>
+            <option value="Sound">Sound</option>
+            <option value="StillImage">StillImage</option>
+            <option value="Text">Text</option>
+          </select>
+        </div>
+        <div class="fm-row">
+          <div class="fm-lbl">comment</div>
+          <textarea class="fm-textarea" id="fm-comment" placeholder="comment about the currently open file..." data-action="updateFileMetaComment" data-event="input"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scrollable section: add button + all space cards -->
+    <div id="right-scroll">
+      <div id="add-docspace-bar">
+        <button id="add-docspace-btn" data-action="createRootDocSpace">+ Add DocumentSpace</button>
+      </div>
+      <div id="spaces-container">
+        <div style="color:var(--text3);font-size:10px;font-family:var(--mono);padding:12px 8px;text-align:center;">No spaces yet</div>
+      </div>
+    </div>
+
+    <!-- Image filter panel (commented out)
+    <div id="filter-panel">
+      <div class="filter-row">
+        <span class="filter-lbl">bright</span>
+        <input class="filter-slider" id="sl-brightness" type="range" min="0" max="300" value="100" step="1" data-action="applyImageFilter" data-event="input">
+        <span class="filter-val" id="val-brightness">100%</span>
+      </div>
+      <div class="filter-row">
+        <span class="filter-lbl">hue</span>
+        <input class="filter-slider" id="sl-hue" type="range" min="0" max="360" value="0" step="1" data-action="applyImageFilter" data-event="input">
+        <span class="filter-val" id="val-hue">0°</span>
+      </div>
+      <div class="filter-row">
+        <span class="filter-lbl">sat</span>
+        <input class="filter-slider" id="sl-saturation" type="range" min="0" max="300" value="100" step="1" data-action="applyImageFilter" data-event="input">
+        <span class="filter-val" id="val-saturation">100%</span>
+      </div>
+      <div class="filter-row">
+        <span class="filter-lbl">contr</span>
+        <input class="filter-slider" id="sl-contrast" type="range" min="0" max="300" value="100" step="1" data-action="applyImageFilter" data-event="input">
+        <span class="filter-val" id="val-contrast">100%</span>
+      </div>
+      <button class="filter-reset-btn" data-action="resetImageFilter">reset filters</button>
+    </div>
+    -->
+
+  </div>
+
+</div>
+<!-- BP-in-Asset space picker modal -->
+<div id="bp-picker" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
+  <div id="bp-picker-box">
+    <div id="bp-picker-hdr">
+      <span>Select Reference Space (TargetAsset)</span>
+      <button onclick="closeBPPicker()" title="Close">&#10005;</button>
+    </div>
+    <input id="bp-space-search" type="text" placeholder="Search &#8211; all TargetAsset spaces&#8230;" oninput="_bpFilterSpaces(this.value)" autocomplete="off" spellcheck="false">
+    <div id="bp-space-list"></div>
+  </div>
+</div>
+<div id="notif"></div>
+
+<script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
