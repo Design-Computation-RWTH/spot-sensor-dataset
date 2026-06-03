@@ -8,9 +8,9 @@ This repository contains a spatial RDF dataset of a sensor installation document
 
 | Path | Description |
 |------|-------------|
-| `spot_sensor_dataset.ttl` | Full RDF dataset in Turtle serialization |
+| `dataset/` | Full RDF dataset in Turtle serialization |
 | `queries/` | Exemplary SPARQL queries |
-| `app/` | Source code of the annotation application used to produce the dataset |
+| `spot-reloc-annotation-tool/` | Source code of the annotation application used to produce the dataset |
 
 ---
 
@@ -28,7 +28,7 @@ Spatial relations are expressed qualitatively using:
 
 ## Annotation Application
 
-The `app/` directory contains the source code of the web-based annotation tool used to produce the dataset. For usage instructions and keyboard shortcuts, see [`app/README.md`](app/README.md).
+The `spot-reloc-annotation-tool/` directory contains the source code of the web-based annotation tool used to produce the dataset. For usage instructions and keyboard shortcuts, see [`app/README.md`](app/README.md).
 
 ---
 
