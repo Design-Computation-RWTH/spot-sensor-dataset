@@ -28,7 +28,7 @@ Spatial relations are expressed qualitatively using:
 
 ## Annotation Application
 
-The `spot-reloc-annotation-tool/` directory contains the source code of the web-based annotation tool used to produce the dataset. For usage instructions and keyboard shortcuts, see [`app/README.md`](app/README.md).
+The `spot-reloc-annotation-tool/` directory contains the source code of the web-based annotation tool used to produce the dataset. For usage instructions and keyboard shortcuts, see [`spot-annotation-tool/README.md`](spot-annotation-tool/README.md).
 
 ---
 
